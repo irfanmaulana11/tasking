@@ -259,7 +259,23 @@ const TaskList: React.FC = () => {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {statusTasks.map((task) => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    onShowHistory={showTaskHistory}
+                    onActionClick={(taskId, action, needsProgress) => {
+                      if (needsProgress) {
+                        openProgressModal(task, action);
+                      } else {
+                        handleTaskAction(taskId, action);
+                      }
+                    }}
+                    onEditClick={(taskId) => navigate(`/tasks/edit/${taskId}`)}
+                    getAvailableActions={getAvailableActions}
+                    actionLoading={actionLoading}
+                    userRole={userRole}
+                    statusColors={statusColors}
+                  />
                 ))}
               </div>
             </div>
@@ -281,7 +297,24 @@ const TaskList: React.FC = () => {
                   
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {statusTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} compact />
+                      <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        compact 
+                        onShowHistory={showTaskHistory}
+                        onActionClick={(taskId, action, needsProgress) => {
+                          if (needsProgress) {
+                            openProgressModal(task, action);
+                          } else {
+                            handleTaskAction(taskId, action);
+                          }
+                        }}
+                        onEditClick={(taskId) => navigate(`/tasks/edit/${taskId}`)}
+                        getAvailableActions={getAvailableActions}
+                        actionLoading={actionLoading}
+                        userRole={userRole}
+                        statusColors={statusColors}
+                      />
                     ))}
                     {statusTasks.length === 0 && (
                       <div className="text-center text-gray-500 py-8">
@@ -398,138 +431,26 @@ const TaskList: React.FC = () => {
 interface TaskCardProps {
   task: Task;
   compact?: boolean;
+  onShowHistory: (task: Task) => void;
+  onActionClick: (taskId: string, action: string, needsProgress?: boolean) => void;
+  onEditClick: (taskId: string) => void;
+  getAvailableActions: (task: Task) => any[];
+  actionLoading: string | null;
+  userRole: string;
+  statusColors: any;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => {
-  const navigate = useNavigate();
-  const userRole = JSON.parse(localStorage.getItem('user') || '{}').role || '';
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showProgressModal, setShowProgressModal] = useState(false);
-  const [progressValue, setProgressValue] = useState(0);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const statusColors = {
-    'Submitted': 'bg-blue-100 text-blue-800 border-blue-200',
-    'Revision': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    'Approved': 'bg-green-100 text-green-800 border-green-200',
-    'In Progress': 'bg-purple-100 text-purple-800 border-purple-200',
-    'Completed': 'bg-gray-100 text-gray-800 border-gray-200'
-  };
-
-  const showTaskHistory = (task: Task) => {
-    setSelectedTask(task);
-    setShowHistory(true);
-  };
-
-  const handleTaskAction = async (taskId: string, action: string, progressValue?: number) => {
-    setActionLoading(taskId + action);
-    try {
-      const token = localStorage.getItem('token');
-      let url = '';
-      let body = {};
-      
-      switch (action) {
-        case 'progress':
-          url = `http://localhost:8080/api/tasks/${taskId}/progress`;
-          body = { progress: progressValue };
-          break;
-        case 'override':
-          url = `http://localhost:8080/api/tasks/${taskId}/progress/overide`;
-          body = { progress: progressValue };
-          break;
-        case 'revise':
-          url = `http://localhost:8080/api/tasks/${taskId}/revise`;
-          break;
-        case 'approve':
-          url = `http://localhost:8080/api/tasks/${taskId}/approve`;
-          break;
-        case 'complete':
-          url = `http://localhost:8080/api/tasks/${taskId}/complete`;
-          break;
-      }
-      
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-      
-      if (response.ok) {
-        window.location.reload(); // Simple refresh
-        setShowProgressModal(false);
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Action failed');
-      }
-    } catch (error) {
-      alert('Connection error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const openProgressModal = (task: Task, action: string) => {
-    setSelectedTask(task);
-    setProgressValue(task.progress);
-    setShowProgressModal(true);
-  };
-
-  const getAvailableActions = (task: Task) => {
-    const actions = [];
-    
-    if (userRole === 'pelaksana' && (task.status === 'Approved' || task.status === 'In Progress')) {
-      actions.push({
-        label: 'Update Progress',
-        action: 'progress',
-        color: 'bg-blue-500 hover:bg-blue-600',
-        needsProgress: true
-      });
-    }
-    
-    if (userRole === 'leader') {
-      if (task.status === 'Submitted') {
-        actions.push(
-          {
-            label: 'Approve',
-            action: 'approve',
-            color: 'bg-green-500 hover:bg-green-600',
-            needsProgress: false
-          },
-          {
-            label: 'Revise',
-            action: 'revise',
-            color: 'bg-yellow-500 hover:bg-yellow-600',
-            needsProgress: false
-          }
-        );
-      }
-      
-      if (task.status === 'In Progress') {
-        actions.push({
-          label: 'Override Progress',
-          action: 'override',
-          color: 'bg-purple-500 hover:bg-purple-600',
-          needsProgress: true
-        });
-      }
-    }
-    
-    if ((userRole === 'leader' || userRole === 'pelaksana') && task.status === 'In Progress' && task.progress === 100) {
-      actions.push({
-        label: 'Complete',
-        action: 'complete',
-        color: 'bg-gray-500 hover:bg-gray-600',
-        needsProgress: false
-      });
-    }
-    
-    return actions;
-  };
-
+const TaskCard: React.FC<TaskCardProps> = ({ 
+  task, 
+  compact = false, 
+  onShowHistory, 
+  onActionClick, 
+  onEditClick, 
+  getAvailableActions, 
+  actionLoading, 
+  userRole, 
+  statusColors 
+}) => {
   return (
     <div className={`bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow ${
       task.status === 'Revision' ? 'border-l-4 border-yellow-500' : ''
@@ -573,13 +494,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => {
             {getAvailableActions(task).map((actionItem, actionIndex) => (
               <button
                 key={actionIndex}
-                onClick={() => {
-                  if (actionItem.needsProgress) {
-                    openProgressModal(task, actionItem.action);
-                  } else {
-                    handleTaskAction(task.id, actionItem.action);
-                  }
-                }}
+                onClick={() => onActionClick(task.id, actionItem.action, actionItem.needsProgress)}
                 disabled={actionLoading === task.id + actionItem.action}
                 className={`px-2 py-1 text-white text-xs rounded transition-colors disabled:opacity-50 ${actionItem.color}`}
               >
@@ -592,7 +507,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => {
         <div className="flex justify-between items-center">
           <div className="flex space-x-2">
             <button
-              onClick={() => showTaskHistory(task)}
+              onClick={() => onShowHistory(task)}
               className={`bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors ${
                 compact ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'
               }`}
@@ -601,7 +516,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => {
             </button>
             {task.status === 'Revision' && userRole === 'pelaksana' && (
               <button
-                onClick={() => navigate(`/tasks/edit/${task.id}`)}
+                onClick={() => onEditClick(task.id)}
                 className={`bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors ${
                   compact ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'
                 }`}
