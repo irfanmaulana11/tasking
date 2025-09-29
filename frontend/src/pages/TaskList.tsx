@@ -34,7 +34,8 @@ const TaskList: React.FC = () => {
   const [viewMode, setViewMode] = useState<'card' | 'board'>('card');
   const navigate = useNavigate();
   
-  const userRole = JSON.parse(localStorage.getItem('user') || '{}').role || '';
+  const userData = JSON.parse(localStorage.getItem('user') || '{}');
+  const userRole = userData.role || '';
 
   const statusColors = {
     'Submitted': 'bg-blue-100 text-blue-800 border-blue-200',
@@ -141,6 +142,8 @@ const TaskList: React.FC = () => {
 
   const getAvailableActions = (task: Task) => {
     const actions = [];
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const currentUser = userData.username || userData.user_name || userData.name || '';
     
     // Progress update - for pelaksana on their own tasks
     if (userRole === 'pelaksana' && (task.status === 'Approved' || task.status === 'In Progress')) {
@@ -171,6 +174,16 @@ const TaskList: React.FC = () => {
         );
       }
       
+      // Leader can approve task in revision status if assigned to them
+      if (task.status === 'Revision' && task.Assignee === currentUser) {
+        actions.push({
+          label: 'Approve',
+          action: 'approve',
+          color: 'bg-green-500 hover:bg-green-600',
+          needsProgress: false
+        });
+      }
+      
       if (task.status === 'In Progress') {
         actions.push({
           label: 'Override Progress',
@@ -181,8 +194,8 @@ const TaskList: React.FC = () => {
       }
     }
     
-    // Complete action - for both leader and pelaksana
-    if ((userRole === 'leader' || userRole === 'pelaksana') && task.status === 'In Progress' && task.progress === 100) {
+    // Complete action - for both leader and pelaksana on In Progress tasks
+    if ((userRole === 'leader' || userRole === 'pelaksana') && task.status === 'In Progress') {
       actions.push({
         label: 'Complete',
         action: 'complete',
