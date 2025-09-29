@@ -108,7 +108,7 @@ func (s *taskService) UpdateTask(c *gin.Context, req dto.Task) (int, *dto.Task, 
 		// keep oke when failed save history
 	}
 
-	return http.StatusInternalServerError, &req, nil
+	return http.StatusOK, &req, nil
 }
 
 func (s *taskService) UpdateTaskStatus(c *gin.Context, req dto.TaskProgress) (int, *dto.TaskProgress, error) {
@@ -127,17 +127,38 @@ func (s *taskService) UpdateTaskStatus(c *gin.Context, req dto.TaskProgress) (in
 	progress := task.Progress
 
 	switch req.Status {
-	case constanta.TaskStatusApproved, constanta.TaskStatusRevision:
+	case constanta.TaskStatusApproved:
+		// Leader can approve if task is in revision status and assigned to them
+		if claim.Role == constanta.RoleTypeLeader && task.Status == constanta.TaskStatusRevision && task.Assignee == claim.UserName {
+			assignee = task.CreatedBy
+		} else if claim.Role == constanta.RoleTypeLeader && task.Status == constanta.TaskStatusSubmitted {
+			assignee = task.CreatedBy
+		} else {
+			return http.StatusForbidden, nil, fmt.Errorf("you are not authorized to approve this task")
+		}
+	case constanta.TaskStatusRevision:
+		if claim.Role != constanta.RoleTypeLeader {
+			return http.StatusForbidden, nil, fmt.Errorf("only leader can revise task")
+		}
 		assignee = task.CreatedBy
 	case constanta.TaskStatusInProgress:
-		if task.Status != constanta.TaskStatusApproved {
-			return http.StatusBadRequest, nil, fmt.Errorf("the task must be approved by leader")
+		if task.Status != constanta.TaskStatusApproved && task.Status != constanta.TaskStatusInProgress {
+			return http.StatusBadRequest, nil, fmt.Errorf("the task must be approved by leader and current must in progress")
 		}
 		progress = req.Progress
 		assignee = task.CreatedBy
 		if progress >= 100 && claim.Role == constanta.RoleTypePelaksana {
 			assignee = task.AssignedLeader
 		}
+	case constanta.TaskStatusCompleted:
+		if task.Status != constanta.TaskStatusInProgress {
+			return http.StatusBadRequest, nil, fmt.Errorf("task must be in progress to be completed")
+		}
+		if claim.Role != constanta.RoleTypeLeader && claim.Role != constanta.RoleTypePelaksana {
+			return http.StatusForbidden, nil, fmt.Errorf("only leader or pelaksana can complete task")
+		}
+		progress = 100
+		assignee = task.CreatedBy
 	default:
 		assignee = task.CreatedBy
 	}
