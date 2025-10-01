@@ -63,7 +63,7 @@ func PelaksanaOnlyMiddleware() gin.HandlerFunc {
 		claim, _ := helper.GetTokenClaims(tokenString)
 
 		if claim.Role != constanta.RoleTypePelaksana {
-			c.AbortWithStatusJSON(403, gin.H{"error": "employee only"})
+			c.AbortWithStatusJSON(403, gin.H{"error": "Access denied for this resource."})
 			return
 		}
 
@@ -78,7 +78,7 @@ func LeaderOnlyMiddleware() gin.HandlerFunc {
 		claim, _ := helper.GetTokenClaims(tokenString)
 
 		if claim.Role != constanta.RoleTypeLeader {
-			c.AbortWithStatusJSON(403, gin.H{"error": "employee only"})
+			c.AbortWithStatusJSON(403, gin.H{"error": "Access denied for this resource."})
 			return
 		}
 
@@ -93,7 +93,7 @@ func LeaderAndPelaksanaOnlyMiddleware() gin.HandlerFunc {
 		claim, _ := helper.GetTokenClaims(tokenString)
 
 		if claim.Role != constanta.RoleTypeLeader && claim.Role != constanta.RoleTypePelaksana {
-			c.AbortWithStatusJSON(403, gin.H{"error": "employee only"})
+			c.AbortWithStatusJSON(403, gin.H{"error": "Access denied for this resource."})
 			return
 		}
 

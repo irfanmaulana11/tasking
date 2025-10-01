@@ -30,6 +30,8 @@ const TaskList: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [progressValue, setProgressValue] = useState(0);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionNote, setRevisionNote] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'board'>('card');
   const navigate = useNavigate();
@@ -84,7 +86,7 @@ const TaskList: React.FC = () => {
     setShowHistory(true);
   };
 
-  const handleTaskAction = async (taskId: string, action: string, progressValue?: number) => {
+  const handleTaskAction = async (taskId: string, action: string, progressValue?: number, note?: string) => {
     setActionLoading(taskId + action);
     try {
       const token = localStorage.getItem('token');
@@ -102,6 +104,7 @@ const TaskList: React.FC = () => {
           break;
         case 'revise':
           url = `http://localhost:8080/api/tasks/${taskId}/revise`;
+          body = { note: note || '' };
           break;
         case 'approve':
           url = `http://localhost:8080/api/tasks/${taskId}/approve`;
@@ -140,6 +143,12 @@ const TaskList: React.FC = () => {
     setShowProgressModal(true);
   };
 
+  const openRevisionModal = (task: Task) => {
+    setSelectedTask(task);
+    setRevisionNote('');
+    setShowRevisionModal(true);
+  };
+
   const getAvailableActions = (task: Task) => {
     const actions = [];
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -169,7 +178,8 @@ const TaskList: React.FC = () => {
             label: 'Revise',
             action: 'revise',
             color: 'bg-yellow-500 hover:bg-yellow-600',
-            needsProgress: false
+            needsProgress: false,
+            needsNote: true
           }
         );
       }
@@ -216,131 +226,173 @@ const TaskList: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Task List</h1>
-        <div className="flex items-center space-x-3">
-          {/* View Mode Toggle */}
-          <div className="flex bg-gray-200 rounded-lg p-1">
+    <>
+      {/* Fixed Header Container - Completely Separate */}
+      <div className="fixed top-0 left-64 right-0 bg-white p-6 pb-4 border-b border-gray-200 z-30 shadow-sm">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-800">Task List</h1>
+          <div className="flex items-center space-x-3">
+            {/* View Mode Toggle */}
+            <div className="flex bg-gray-200 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('card')}
+                className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                  viewMode === 'card' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                📋 Card View
+              </button>
+              <button
+                onClick={() => setViewMode('board')}
+                className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                  viewMode === 'board' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                📏 Board View
+              </button>
+            </div>
+            
             <button
-              onClick={() => setViewMode('card')}
-              className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                viewMode === 'card' 
-                  ? 'bg-white text-gray-900 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              onClick={fetchTasks}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
-              📋 Card View
+              🔄 Refresh
             </button>
-            <button
-              onClick={() => setViewMode('board')}
-              className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                viewMode === 'board' 
-                  ? 'bg-white text-gray-900 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              📏 Board View
-            </button>
+            {userRole === 'pelaksana' ? (
+              <Link
+                to="/tasks/create"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                + Create Task
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="px-4 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed opacity-50"
+                title="Only pelaksana can create tasks"
+              >
+                + Create Task
+              </button>
+            )}
           </div>
-          
-          <button
-            onClick={fetchTasks}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            🔄 Refresh
-          </button>
-          <Link
-            to="/tasks/create"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            + Create Task
-          </Link>
         </div>
       </div>
-      
-      {Object.keys(groupedTasks).length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <p className="text-gray-500 text-center">No tasks found.</p>
-        </div>
-      ) : viewMode === 'card' ? (
-        <div className="space-y-8">
-          {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-            <div key={status}>
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                {status} ({statusTasks.length})
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {statusTasks.map((task) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    onShowHistory={showTaskHistory}
-                    onActionClick={(taskId, action, needsProgress) => {
-                      if (needsProgress) {
-                        openProgressModal(task, action);
-                      } else {
-                        handleTaskAction(taskId, action);
-                      }
-                    }}
-                    onEditClick={(taskId) => navigate(`/tasks/edit/${taskId}`)}
-                    getAvailableActions={getAvailableActions}
-                    actionLoading={actionLoading}
-                    userRole={userRole}
-                    statusColors={statusColors}
-                  />
+
+      {/* Content Area with Top Margin */}
+      <div className="pt-28 h-screen overflow-hidden">
+        {viewMode === 'card' ? (
+          <div className="h-full overflow-auto p-6">
+            {Object.keys(groupedTasks).length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <p className="text-gray-500 text-center">No tasks found.</p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {Object.entries(groupedTasks).map(([status, statusTasks]) => (
+                  <div key={status}>
+                    <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                      {status} ({statusTasks.length})
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {statusTasks.map((task) => (
+                        <TaskCard 
+                          key={task.id} 
+                          task={task} 
+                          onShowHistory={showTaskHistory}
+                          onActionClick={(taskId, action, needsProgress, needsNote) => {
+                            if (needsProgress) {
+                              openProgressModal(task, action);
+                            } else if (needsNote) {
+                              openRevisionModal(task);
+                            } else {
+                              handleTaskAction(taskId, action);
+                            }
+                          }}
+                          onEditClick={(taskId) => navigate(`/tasks/edit/${taskId}`)}
+                          getAvailableActions={getAvailableActions}
+                          actionLoading={actionLoading}
+                          userRole={userRole}
+                          statusColors={statusColors}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-6 overflow-x-auto pb-6">
-          {['Submitted', 'Revision', 'Approved', 'In Progress', 'Completed'].map((status) => {
-            const statusTasks = groupedTasks[status] || [];
-            return (
-              <div key={status} className="flex-shrink-0 w-80">
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-800">{status}</h3>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'}`}>
-                      {statusTasks.length}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {statusTasks.map((task) => (
-                      <TaskCard 
-                        key={task.id} 
-                        task={task} 
-                        compact 
-                        onShowHistory={showTaskHistory}
-                        onActionClick={(taskId, action, needsProgress) => {
-                          if (needsProgress) {
-                            openProgressModal(task, action);
-                          } else {
-                            handleTaskAction(taskId, action);
-                          }
-                        }}
-                        onEditClick={(taskId) => navigate(`/tasks/edit/${taskId}`)}
-                        getAvailableActions={getAvailableActions}
-                        actionLoading={actionLoading}
-                        userRole={userRole}
-                        statusColors={statusColors}
-                      />
-                    ))}
-                    {statusTasks.length === 0 && (
-                      <div className="text-center text-gray-500 py-8">
-                        No tasks
-                      </div>
-                    )}
-                  </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full flex flex-col">
+            {Object.keys(groupedTasks).length === 0 ? (
+              <div className="p-6">
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <p className="text-gray-500 text-center">No tasks found.</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+            ) : (
+              <div className="flex-1 overflow-x-auto p-6">
+                <div className="flex gap-6 h-full pb-6" style={{ minWidth: 'max-content' }}>
+                  {['Submitted', 'Revision', 'Approved', 'In Progress', 'Completed'].map((status) => {
+                    const statusTasks = groupedTasks[status] || [];
+                    return (
+                      <div key={status} className="flex-shrink-0 w-80">
+                        <div className="bg-gray-100 rounded-lg h-full flex flex-col">
+                          {/* Column Header */}
+                          <div className="p-4 pb-2 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-gray-800">{status}</h3>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'}`}>
+                              {statusTasks.length}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Tasks Container */}
+                        <div className="flex-1 p-4 pt-2 overflow-y-auto">
+                          <div className="space-y-3">
+                            {statusTasks.map((task) => (
+                              <TaskCard 
+                                key={task.id} 
+                                task={task} 
+                                compact 
+                                onShowHistory={showTaskHistory}
+                                onActionClick={(taskId, action, needsProgress, needsNote) => {
+                                  if (needsProgress) {
+                                    openProgressModal(task, action);
+                                  } else if (needsNote) {
+                                    openRevisionModal(task);
+                                  } else {
+                                    handleTaskAction(taskId, action);
+                                  }
+                                }}
+                                onEditClick={(taskId) => navigate(`/tasks/edit/${taskId}`)}
+                                getAvailableActions={getAvailableActions}
+                                actionLoading={actionLoading}
+                                userRole={userRole}
+                                statusColors={statusColors}
+                              />
+                            ))}
+                            {statusTasks.length === 0 && (
+                              <div className="text-center text-gray-500 py-8">
+                                No tasks
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* History Modal */}
       {showHistory && selectedTask && (
@@ -367,7 +419,10 @@ const TaskList: React.FC = () => {
                         <div className="font-medium text-gray-800">{history.action}</div>
                         <div className="text-sm text-gray-600">by {history.action_by}</div>
                         {history.note && (
-                          <div className="text-sm text-gray-500 mt-1">{history.note}</div>
+                          <div className="text-sm text-gray-600 mt-2 p-2 bg-gray-100 rounded border-l-2 border-gray-300">
+                            <span className="text-xs text-gray-500 font-medium">Note:</span>
+                            <div className="mt-1">{history.note}</div>
+                          </div>
                         )}
                       </div>
                       <div className="text-xs text-gray-400">
@@ -436,7 +491,56 @@ const TaskList: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Revision Modal */}
+      {showRevisionModal && selectedTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Revise Task: {selectedTask.title}</h3>
+              <button
+                onClick={() => setShowRevisionModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Revision Note
+              </label>
+              <textarea
+                value={revisionNote}
+                onChange={(e) => setRevisionNote(e.target.value)}
+                placeholder="Enter revision note..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                rows={4}
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowRevisionModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleTaskAction(selectedTask.id, 'revise', undefined, revisionNote);
+                  setShowRevisionModal(false);
+                }}
+                disabled={actionLoading !== null}
+                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Revising...' : 'Revise Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -445,7 +549,7 @@ interface TaskCardProps {
   task: Task;
   compact?: boolean;
   onShowHistory: (task: Task) => void;
-  onActionClick: (taskId: string, action: string, needsProgress?: boolean) => void;
+  onActionClick: (taskId: string, action: string, needsProgress?: boolean, needsNote?: boolean) => void;
   onEditClick: (taskId: string) => void;
   getAvailableActions: (task: Task) => any[];
   actionLoading: string | null;
@@ -507,7 +611,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {getAvailableActions(task).map((actionItem, actionIndex) => (
               <button
                 key={actionIndex}
-                onClick={() => onActionClick(task.id, actionItem.action, actionItem.needsProgress)}
+                onClick={() => onActionClick(task.id, actionItem.action, actionItem.needsProgress, actionItem.needsNote)}
                 disabled={actionLoading === task.id + actionItem.action}
                 className={`px-2 py-1 text-white text-xs rounded transition-colors disabled:opacity-50 ${actionItem.color}`}
               >

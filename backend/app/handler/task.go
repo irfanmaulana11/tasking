@@ -143,7 +143,9 @@ func (h *ApiHandler) TaskRevise(c *gin.Context) {
 func (h *ApiHandler) TaskApproved(c *gin.Context) {
 	h.TaskStatusUpdate(c, constanta.TaskStatusApproved)
 }
-func (h *ApiHandler) TaskOveride(c *gin.Context) { h.TaskStatusUpdate(c, "") }
+func (h *ApiHandler) TaskOveride(c *gin.Context) {
+	h.TaskStatusUpdate(c, constanta.TaskStatusInProgress)
+}
 
 func (h *ApiHandler) TaskCompleted(c *gin.Context) {
 	h.TaskStatusUpdate(c, constanta.TaskStatusCompleted)
